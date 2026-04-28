@@ -53,6 +53,7 @@ This repository includes a `GEMINI.md` file. When you work with Gemini CLI in th
 
 ### Architecture & Foundation
 - **android-architecture**: Clean architecture, UDF, and project structure guidance.
+- **orbit-mvi**: Kotlin Multiplatform MVI framework for Android and iOS.
 - **android-viewmodel**: Proper implementation using `StateFlow` and `SharedFlow`.
 - **android-data-layer**: Repository pattern, Room, and data source abstraction.
 - **kotlin-concurrency-expert**: Deep dive into Kotlin Coroutines and Threading.
