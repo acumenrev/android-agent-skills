@@ -1,198 +1,66 @@
 ---
 name: compose-performance-audit
-description: "Audit and improve Jetpack Compose runtime performance from code review and architecture. Use when asked to diagnose slow rendering, janky scrolling, excessive recompositions, or performance issues in Compose UI."
+description: "Audit and improve Jetpack Compose runtime performance. Use when asked to diagnose slow rendering, janky scrolling, excessive recompositions, or performance issues in Compose UI."
 ---
-# Compose Performance Audit
+# Compose Performance Expert
 
-## Overview
+## Instructions
 
-Audit Jetpack Compose view performance end-to-end, from instrumentation and baselining to root-cause analysis and concrete remediation steps.
+Audit Jetpack Compose performance end-to-end, from instrumentation to root-cause analysis and remediation.
 
-## Workflow Decision Tree
+### 1. Instrumentation & Profiling
+Before optimizing, measure the performance on a **release build** with R8 enabled.
+*   **Layout Inspector**: Use in Android Studio to observe recomposition counts and stability markers.
+*   **Recomposition Highlights**: Enable in Compose tooling to visually identify active UI areas.
+*   **Macrobenchmark**: Use for cold start, hot start, and scrolling performance metrics.
 
-- If the user provides code, start with "Code-First Review."
-- If the user only describes symptoms, ask for minimal code/context, then do "Code-First Review."
-- If code review is inconclusive, go to "Guide the User to Profile" and ask for Layout Inspector output or Perfetto traces.
+### 2. Identify Stability Issues
+Compose skips recomposition if parameters are **stable**.
+*   **Unstable Classes**: Classes with `var` properties or those containing unstable types like `List` or `Map` are considered unstable.
+*   **Fix**: Use `@Immutable` or `@Stable` annotations for data classes, or use `kotlinx.collections.immutable` types.
 
-## 1. Code-First Review
+### 3. Defer State Reads
+Reading state during the **composition phase** triggers recomposition for the whole scope.
+*   **Layout Phase**: Use lambda-based modifiers like `Modifier.offset { IntOffset(0, scrollState.value) }` to read state only during layout.
+*   **Draw Phase**: Use `Modifier.drawBehind { ... }` for drawing operations.
 
-Collect:
-- Target Composable code.
-- Data flow: state, remember, derived state, ViewModel connections.
-- Symptoms and reproduction steps.
+### 4. Optimize Heavy Computations
+*   **`remember`**: Cache expensive calculations (sorting, filtering) across recompositions.
+*   **`derivedStateOf`**: Use when a state changes frequently (e.g., scroll position) but the UI only needs to react to a threshold.
 
-Focus on:
-- **Recomposition storms** from unstable parameters or broad state changes.
-- **Unstable keys** in `LazyColumn`/`LazyRow` (`key` churn, missing keys).
-- **Heavy work in composition** (formatting, sorting, filtering, object allocation).
-- **Unnecessary recompositions** (missing `remember`, unstable classes, lambdas).
-- **Large images** without proper sizing or async loading.
-- **Layout thrash** (deep nesting, intrinsic measurements, `SubcomposeLayout` misuse).
+### 5. Efficient Lazy Lists
+*   **Stable Keys**: Always provide a unique `key` for `items` in `LazyColumn`/`LazyRow` to prevent unnecessary recompositions when the list changes.
+*   **ContentType**: Use `contentType` to improve item reuse efficiency.
 
-Provide:
-- Likely root causes with code references.
-- Suggested fixes and refactors.
-- If needed, a minimal repro or instrumentation suggestion.
+## Example Prompts
 
-## 2. Guide the User to Profile
+1.  "Audit this Composable for unnecessary recompositions and suggest stability improvements."
+2.  "My screen is janking while scrolling through a long list of items. How can I optimize the LazyColumn performance?"
+3.  "Why is this simple button triggering a recomposition of the entire screen when clicked? Help me debug the state reads."
 
-Explain how to collect data:
-- Use **Layout Inspector** in Android Studio to see recomposition counts.
-- Enable **Recomposition Highlights** in Compose tooling.
-- Use **Perfetto** or **System Trace** for frame timing analysis.
-- Check **Macrobenchmark** results for startup/scroll metrics.
+## Expected Output
 
-Ask for:
-- Layout Inspector screenshot showing recomposition counts.
-- Perfetto trace or System Trace export.
-- Device/OS/build configuration (debug vs release).
+The user should receive:
+*   A prioritized list of performance bottlenecks identified in the code.
+*   Concrete code refactors demonstrating how to stabilize parameters or defer state reads.
+*   Instructions on how to use profiling tools to verify the improvements.
+*   A comparison of "Before" vs "After" patterns for common performance pitfalls.
 
-> **Important**: Ensure profiling is done on a **release build** with R8 enabled. Debug builds have significant overhead.
+## Edge Cases & Common Mistakes
 
-## 3. Analyze and Diagnose
+*   **Profiling in Debug Mode**: Never trust performance metrics from a debug build. Debug builds have heavy instrumentation that masks real performance characteristics.
+*   **Over-optimizing**: Don't wrap everything in `remember` or `derivedStateOf`. Only apply these when profiling shows a measurable cost or high recomposition counts.
+*   **Unstable Lambda Captures**: Capturing unstable variables in a lambda passed to a child Composable makes the lambda itself unstable, causing the child to recompose. Use `remember` for the lambda or method references.
+*   **Index as Key**: Using the list index as a `key` in `LazyColumn` is often worse than no key at all, as it causes every item to recompose when an item is inserted or removed at the beginning.
+*   **Heavy Work in Composition**: Performing network calls, database queries, or heavy string formatting directly in a `@Composable` body is a critical mistake. These belong in a ViewModel.
 
-Prioritize likely Compose culprits:
-- **Recomposition storms** from unstable parameters or broad state changes.
-- **Unstable keys** in lazy lists (`key` churn, index-based keys).
-- **Heavy work in composition** (formatting, sorting, object allocation).
-- **Missing `remember`** causing recreations on every recomposition.
-- **Large images** without `Modifier.size()` constraints.
-- **Unnecessary state reads** in wrong composition phases.
+## Review Checklist
 
-Summarize findings with evidence from traces/Layout Inspector.
-
-## 4. Remediate
-
-Apply targeted fixes:
-- **Stabilize parameters**: Use `@Stable` or `@Immutable` annotations on data classes.
-- **Stabilize keys**: Use stable, unique IDs for `LazyColumn`/`LazyRow` items.
-- **Defer state reads**: Use `derivedStateOf`, lambda-based modifiers, or `Modifier.drawBehind`.
-- **Remember expensive computations**: Wrap in `remember { }` or `remember(key) { }`.
-- **Skip recomposition**: Extract stable composables, use `key()` to control identity.
-- **Async image loading**: Use Coil/Glide with proper sizing constraints.
-- **Reduce layout complexity**: Flatten hierarchies, avoid deep nesting.
-
-## Common Code Smells (and Fixes)
-
-### Unstable lambda captures
-
-```kotlin
-// BAD: New lambda instance every recomposition
-Button(onClick = { viewModel.doSomething(item) }) { ... }
-
-// GOOD: Use remember or method reference
-val onClick = remember(item) { { viewModel.doSomething(item) } }
-Button(onClick = onClick) { ... }
-```
-
-### Expensive work in composition
-
-```kotlin
-// BAD: Sorting on every recomposition
-@Composable
-fun ItemList(items: List<Item>) {
-    val sorted = items.sortedBy { it.name } // Runs every recomposition
-    LazyColumn { items(sorted) { ... } }
-}
-
-// GOOD: Use remember with key
-@Composable
-fun ItemList(items: List<Item>) {
-    val sorted = remember(items) { items.sortedBy { it.name } }
-    LazyColumn { items(sorted) { ... } }
-}
-```
-
-### Missing keys in LazyColumn
-
-```kotlin
-// BAD: Index-based identity (causes recomposition on list changes)
-LazyColumn {
-    items(items) { item -> ItemRow(item) }
-}
-
-// GOOD: Stable key-based identity
-LazyColumn {
-    items(items, key = { it.id }) { item -> ItemRow(item) }
-}
-```
-
-### Unstable data classes
-
-```kotlin
-// BAD: Unstable (contains List, which is not stable)
-data class UiState(
-    val items: List<Item>,
-    val isLoading: Boolean
-)
-
-// GOOD: Mark as Immutable if truly immutable
-@Immutable
-data class UiState(
-    val items: ImmutableList<Item>, // kotlinx.collections.immutable
-    val isLoading: Boolean
-)
-```
-
-### Reading state too early
-
-```kotlin
-// BAD: State read during composition (recomposes whole tree)
-@Composable
-fun AnimatedBox(scrollState: ScrollState) {
-    val offset = scrollState.value // Recomposes on every scroll
-    Box(modifier = Modifier.offset(y = offset.dp)) { ... }
-}
-
-// GOOD: Defer state read to layout/draw phase
-@Composable
-fun AnimatedBox(scrollState: ScrollState) {
-    Box(modifier = Modifier.offset {
-        IntOffset(0, scrollState.value) // Read in layout phase
-    }) { ... }
-}
-```
-
-### Object allocation in composition
-
-```kotlin
-// BAD: Creates new Modifier chain every recomposition
-Box(modifier = Modifier.padding(16.dp).background(Color.Red))
-
-// GOOD for dynamic modifiers: Remember the modifier
-val modifier = remember { Modifier.padding(16.dp).background(Color.Red) }
-Box(modifier = modifier)
-```
-
-## Stability Checklist
-
-| Type | Stable by Default? | Fix |
-|------|-------------------|-----|
-| Primitives (`Int`, `String`, `Boolean`) | Yes | N/A |
-| `data class` with stable fields | Yes* | Ensure all fields are stable |
-| `List`, `Map`, `Set` | **No** | Use `ImmutableList` from kotlinx |
-| Classes with `var` properties | **No** | Use `@Stable` if externally stable |
-| Lambdas | **No** | Use `remember { }` |
-
-## 5. Verify
-
-Ask the user to:
-- Re-run Layout Inspector and compare recomposition counts.
-- Run Macrobenchmark and compare frame timing.
-- Test on a real device with release build.
-
-Summarize the delta (recomposition count, frame drops, jank) if provided.
-
-## Outputs
-
-Provide:
-- A short metrics table (before/after if available).
-- Top issues (ordered by impact).
-- Proposed fixes with estimated effort.
-
-## References
-
-- [Jetpack Compose Performance](https://developer.android.com/develop/ui/compose/performance)
-- [Compose Stability Explained](https://developer.android.com/develop/ui/compose/performance/stability)
-- [Debugging Recomposition](https://developer.android.com/develop/ui/compose/tooling/layout-inspector)
-- [Macrobenchmark](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)
+- [ ] Is the performance being analyzed on a release build?
+- [ ] Are all data classes passed to Composables marked as `@Immutable` or `@Stable`?
+- [ ] Are `List`, `Map`, and `Set` parameters handled correctly (e.g., via `ImmutableList`)?
+- [ ] Are frequent state reads deferred to layout/draw phases using lambdas?
+- [ ] Do all `LazyColumn` items have stable, unique keys?
+- [ ] Are expensive calculations wrapped in `remember`?
+- [ ] Is `derivedStateOf` used where high-frequency state drives lower-frequency UI updates?
+- [ ] Are modifiers allocated efficiently (avoiding recreation in high-frequency paths)?

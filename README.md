@@ -4,12 +4,12 @@
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white)](https://developer.android.com)
 [![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-compatible-blue.svg)](https://github.com/google/gemini-cli)
 
-A collection of 18 agent skills for modern Android development (AGP 9.0+, Kotlin 2.2, Jetpack Compose), ported and optimized specifically for **Gemini CLI**.
+A collection of 21 agent skills for modern Android development (AGP 9.0+, Kotlin 2.2, Jetpack Compose), ported and optimized specifically for **Gemini CLI**.
 
 Every skill has been normalized for Gemini CLI compatibility:
-- **Normalized Metadata:** `SKILL.md` files use single-line, quoted descriptions and minimal YAML frontmatter for efficient discovery.
-- **Security Audited:** Reviewed for shell injection and unsafe command execution patterns. Includes a robust set of emulator automation scripts.
-- **AGP 9.0 Optimized:** Build-related skills have been updated to reflect the latest AGP 9.0 standards, including built-in Kotlin support and new DSL patterns.
+- **Normalized Metadata:** `SKILL.md` files use YAML frontmatter for efficient discovery.
+- **Security Audited:** Reviewed for shell injection and unsafe command execution patterns.
+- **Strong Modern Defaults:** Skills strictly advocate for modern Android architecture (Hilt, Compose, Room, Coroutines/Flow).
 - **Agent Guidance:** Includes a root-level `GEMINI.md` to provide global instructions and authoring rules to the agent.
 
 ## Install
@@ -77,10 +77,15 @@ This repository includes a `GEMINI.md` file. When you work with Gemini CLI in th
 ### Networking & Integration
 - **android-retrofit**: Type-safe HTTP client configuration and error handling.
 
-### Migration
-- **xml-to-compose-migration**: Systematic workflow for porting legacy XML views to Compose.
+### Engineering & Workflow
+- **android-autonomous-workflow**: Orchestrating multi-step feature development from research to implementation.
+- **android-auto-fix-loop**: Iterative diagnostics for Gradle build errors and dependency conflicts.
+- **android-migration-planner**: Strategies for migrating XML to Compose and RxJava to Coroutines.
+
+### Legacy & Migration
 - **rxjava-to-coroutines-migration**: Refactoring reactive streams to structured concurrency.
+- **xml-to-compose-migration**: Systematic workflow for porting legacy XML views to Compose.
 
 ## License
 
-MIT License. This project is not affiliated with, endorsed by, or sponsored by Google LLC.
+MIT License.

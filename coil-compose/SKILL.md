@@ -1,15 +1,18 @@
 ---
 name: coil-compose
-description: "Expert guidance on using Coil for image loading in Jetpack Compose. Use this when asked about loading images from URLs, handling image states, or optimizing image performance in Compose."
+description: "Expert guidance on using Coil for image loading in Jetpack Compose. Covers AsyncImage, performance optimization, and custom image requests."
 ---
-# Coil for Jetpack Compose
+
+# Coil Image Loading Expert
+
+Expert guidance on implementing efficient image loading in Jetpack Compose using **Coil** (Coroutines Image Loader), following modern performance and UX standards.
 
 ## Instructions
 
-When implementing image loading in Jetpack Compose, use **Coil** (Coroutines Image Loader). It is the recommended library for Compose due to its efficiency and seamless integration.
+When implementing image loading in Jetpack Compose, use **Coil**. It is optimized for Compose and provides a seamless developer experience.
 
 ### 1. Primary Composable: `AsyncImage`
-Use `AsyncImage` for most use cases. It handles size resolution automatically and supports standard `Image` parameters.
+Use `AsyncImage` for almost all use cases. It handles size resolution automatically and integrates with Compose's layout system.
 
 ```kotlin
 AsyncImage(
@@ -21,53 +24,47 @@ AsyncImage(
     error = painterResource(R.drawable.error),
     contentDescription = stringResource(R.string.description),
     contentScale = ContentScale.Crop,
-    modifier = Modifier.clip(CircleShape)
+    modifier = Modifier.size(100.dp).clip(CircleShape)
 )
 ```
 
 ### 2. Low-Level Control: `rememberAsyncImagePainter`
-Use `rememberAsyncImagePainter` only when you need a `Painter` instead of a composable (e.g., for `Canvas` or `Icon`) or when you need to observe the loading state manually.
+Use `rememberAsyncImagePainter` only when you need a `Painter` for non-composable targets like `Canvas`, or for legacy interoperability. Note that it does not detect size automatically.
+
+### 3. Loading & Error States: `SubcomposeAsyncImage`
+Use `SubcomposeAsyncImage` if you need complex custom UI for loading or error states (e.g., a custom spinner or a retry button).
 
 > [!WARNING]
-> `rememberAsyncImagePainter` does not detect the size your image is loaded at on screen and always loads the image with its original dimensions by default. Use `AsyncImage` unless a `Painter` is strictly required.
+> Subcomposition is expensive. Avoid using `SubcomposeAsyncImage` inside `LazyColumn` or `LazyRow` to prevent frame drops.
 
-```kotlin
-val painter = rememberAsyncImagePainter(
-    model = ImageRequest.Builder(LocalContext.current)
-        .data("https://example.com/image.jpg")
-        .size(Size.ORIGINAL) // Explicitly define size if needed
-        .build()
-)
-```
+### 4. Performance & UX Best Practices
+*   **Crossfade**: Always use `.crossfade(true)` for a smooth transition from placeholder to image.
+*   **ContentScale**: Use `ContentScale.Crop` or `ContentScale.Fit` to ensure images are scaled correctly for their container.
+*   **Content Description**: Always provide a meaningful `contentDescription` for accessibility, or `null` if the image is purely decorative.
+*   **Singleton ImageLoader**: Configure a singleton `ImageLoader` in your `Application` class or via Hilt to share memory and disk caches across the app.
 
-### 3. Slot API: `SubcomposeAsyncImage`
-Use `SubcomposeAsyncImage` when you need a custom slot API for different states (Loading, Success, Error).
+## Example Prompts
 
-> [!CAUTION]
-> Subcomposition is slower than regular composition. Avoid using `SubcomposeAsyncImage` in performance-critical areas like `LazyColumn` or `LazyRow`.
+- "Help me implement a circular profile image loader using Coil that shows a generic avatar placeholder while loading."
+- "How do I optimize Coil image loading for a horizontal scrolling list of 100 high-resolution images to avoid jank?"
+- "Show me how to use Coil to load a local image from the res/drawable folder with a custom transformation like Blur."
 
-```kotlin
-SubcomposeAsyncImage(
-    model = "https://example.com/image.jpg",
-    contentDescription = null,
-    loading = {
-        CircularProgressIndicator()
-    },
-    error = {
-        Icon(Icons.Default.Error, contentDescription = null)
-    }
-)
-```
+## Expected Output
 
-### 4. Performance & Best Practices
-*   **Singleton ImageLoader**: Use a single `ImageLoader` instance for the entire app to share the disk/memory cache.
-*   **Main-Safe**: Coil executes image requests on a background thread automatically.
-*   **Crossfade**: Always enable `crossfade(true)` in `ImageRequest` for a smoother transition from placeholder to success.
-*   **Sizing**: Ensure `contentScale` is set appropriately to avoid loading larger images than necessary.
+You should receive concise Compose code using `AsyncImage`, including a properly configured `ImageRequest` with crossfade, placeholders, and error handling, along with advice on performance if applicable.
 
-### 5. Checklist for implementation
-- [ ] Prefer `AsyncImage` over other variants.
-- [ ] Always provide a meaningful `contentDescription` or set it to `null` for decorative images.
-- [ ] Use `crossfade(true)` for better UX.
-- [ ] Avoid `SubcomposeAsyncImage` in lists.
-- [ ] Configure `ImageRequest` for specific needs like transformations (e.g., `CircleCropTransformation`).
+## Edge Cases & Common Mistakes
+
+- **Subcompose in Lists**: Using `SubcomposeAsyncImage` in a `LazyColumn` is a common cause of scrolling performance issues. Use a simple `placeholder` in `AsyncImage` instead.
+- **Missing contentDescription**: Failing to provide a content description makes your app inaccessible to screen readers.
+- **Large Image Overhead**: Loading original-size images into small containers. Coil's `AsyncImage` handles this by default, but ensure you don't override it with `Size.ORIGINAL` unless necessary.
+- **Dynamic URLs**: Forgetting to use a `remember` block or a stable key if the URL changes frequently in a way that triggers unnecessary recompositions.
+
+## Review Checklist
+
+- [ ] Is `AsyncImage` used instead of `rememberAsyncImagePainter` where possible?
+- [ ] Is `crossfade(true)` enabled for better UX?
+- [ ] Is a `contentDescription` provided or explicitly set to `null`?
+- [ ] Is `SubcomposeAsyncImage` avoided in performance-critical lists?
+- [ ] Are placeholders and error images provided?
+- [ ] Is the `modifier` correctly applied for sizing and clipping?

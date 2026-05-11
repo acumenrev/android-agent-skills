@@ -1,101 +1,109 @@
 ---
 name: android-testing
-description: "Comprehensive testing strategy involving Unit, Integration, Hilt, and Screenshot tests."
+description: "Comprehensive testing strategy involving Unit, Integration, Hilt, and Screenshot tests for modern Android apps."
 ---
-# Android Testing Strategies
 
-This skill provides expert guidance on testing modern Android applications, inspired by "Now in Android". It covers **Unit Tests**, **Hilt Integration Tests**, and **Screenshot Testing**.
+# Android Testing Expert
 
-## Testing Pyramid
+Expert guidance on testing modern Android applications using **JUnit 4/5**, **Kotlin Coroutines Test**, **Hilt**, and **Roborazzi** for screenshot testing.
 
-1.  **Unit Tests**: Fast, isolate logic (ViewModels, Repositories).
-2.  **Integration Tests**: Test interactions (Room DAOs, Retrofit vs MockWebServer).
-3.  **UI/Screenshot Tests**: Verify UI correctness (Compose).
+## Instructions
 
-## Dependencies (`libs.versions.toml`)
+Follow the testing pyramid to ensure a robust and maintainable application.
 
-Ensure you have the right testing dependencies.
+### 1. Unit Testing (ViewModels & Repositories)
+Use `kotlinx-coroutines-test` to test business logic without an emulator. Use `TestDispatcher` to control time and execution.
 
-```toml
-[libraries]
-junit4 = { module = "junit:junit", version = "4.13.2" }
-kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
-androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.1.5" }
-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version = "3.5.1" }
-compose-ui-test = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
-roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
+```kotlin
+@OptIn(ExperimentalCoroutinesApi::class)
+class MyViewModelTest {
+    private val testDispatcher = UnconfinedTestDispatcher()
+    private lateinit var viewModel: MyViewModel
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        viewModel = MyViewModel(...)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+}
 ```
 
-## Screenshot Testing with Roborazzi
-
-Screenshot tests ensure your UI doesn't regress visually. NiA uses **Roborazzi** because it runs on the JVM (fast) without needing an emulator.
-
-### Setup
-
-1.  Add the plugin to `libs.versions.toml`:
-    ```toml
-    [plugins]
-    roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
-    ```
-2.  Apply it in your module's `build.gradle.kts`:
-    ```kotlin
-    plugins {
-        alias(libs.plugins.roborazzi)
-    }
-    ```
-
-### Writing a Screenshot Test
+### 2. Screenshot Testing (Roborazzi)
+Verify UI correctness using **Roborazzi**. It runs on the JVM (Robolectric) for speed and doesn't require an emulator.
 
 ```kotlin
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [33], qualifiers = RobolectricDeviceQualifiers.Pixel5)
 class MyScreenScreenshotTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun captureMyScreen() {
         composeTestRule.setContent {
-            MyTheme {
-                MyScreen()
-            }
+            MyTheme { MyScreen() }
         }
-
-        composeTestRule.onRoot()
-            .captureRoboImage()
+        composeTestRule.onRoot().captureRoboImage()
     }
 }
 ```
 
-## Hilt Testing
-
-Use `HiltAndroidRule` to inject dependencies in tests.
+### 3. Hilt Integration Tests
+Use `HiltAndroidRule` to inject real or faked dependencies into your integration tests.
 
 ```kotlin
 @HiltAndroidTest
 class MyDaoTest {
-
     @get:Rule
     var hiltRule = HiltAndroidRule(this)
 
     @Inject
     lateinit var database: MyDatabase
-    private lateinit var dao: MyDao
 
     @Before
     fun init() {
         hiltRule.inject()
-        dao = database.myDao()
     }
-    
-    // ... tests
 }
 ```
 
-## Running Tests
+### 4. Testing dependencies (`libs.versions.toml`)
+Ensure you have the latest testing stack:
+```toml
+[libraries]
+junit4 = { module = "junit:junit", version = "4.13.2" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+roborazzi = { group = "io. Takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
+hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
+```
 
-*   **Unit**: `./gradlew test`
-*   **Screenshots**: `./gradlew recordRoborazziDebug` (to record) / `./gradlew verifyRoborazziDebug` (to verify)
+## Example Prompts
+
+- "Write a unit test for a ViewModel that fetches data from a repository and updates a StateFlow, including error handling."
+- "Show me how to set up a screenshot test for a Compose component using Roborazzi and a custom theme."
+- "How do I mock a Retrofit API service in an integration test using MockWebServer and Hilt?"
+
+## Expected Output
+
+You should receive complete test classes with appropriate rules (JUnit, Hilt, Compose), setup/teardown logic, and clear test cases following the Arrange-Act-Assert pattern.
+
+## Edge Cases & Common Mistakes
+
+- **MainDispatcher in Tests**: Forgetting to set/reset the Main dispatcher (`Dispatchers.setMain`) in ViewModel tests will lead to `IllegalStateException` or tests hanging.
+- **Race Conditions in StateFlow**: Testing `StateFlow` updates often requires `UnconfinedTestDispatcher` or careful use of `backgroundScope.launch` to ensure you don't miss emissions.
+- **Robolectric Context**: Accessing `LocalContext.current` in screenshot tests without proper Robolectric configuration can cause crashes.
+- **Leaking Databases**: Always close `Room` databases in `@After` to avoid memory leaks and inconsistent state between tests.
+
+## Review Checklist
+
+- [ ] Does the test use `kotlinx-coroutines-test` for coroutines?
+- [ ] Are rules (`HiltAndroidRule`, `ComposeTestRule`) correctly ordered?
+- [ ] Are tests descriptive and follow a naming convention (e.g., `whenX_thenReturnY`)?
+- [ ] Are screenshot tests configured with a specific device qualifier (e.g., `Pixel5`)?
+- [ ] Is the Main dispatcher reset after every test?

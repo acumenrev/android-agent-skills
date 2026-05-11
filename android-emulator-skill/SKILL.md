@@ -1,108 +1,54 @@
 ---
 name: android-emulator-skill
-description: "Production-ready scripts for Android app testing, building, and automation. Provides semantic UI navigation, build automation, log monitoring, and emulator lifecycle management. Optimized for AI agents with minimal token output."
+description: "Expert guidance on managing Android Virtual Devices (AVDs), automating UI interactions, and performing build/test operations using CLI tools and scripts."
 ---
-# Android Emulator Skill
 
-Build, test, and automate Android applications using accessibility-driven navigation and structured data instead of pixel coordinates.
+# Android Emulator & Automation Expert
 
-## Quick Start
+## Instructions
 
-```bash
-# 1. Check environment (use .sh on macOS/Linux, .ps1 on Windows)
-bash scripts/emu_health_check.sh
-# or on Windows: .\scripts\emu_health_check.ps1
+Manage Android emulators and automate app interactions using accessibility-driven navigation and structured CLI tools. Focus on reliability, token efficiency, and semantic interaction rather than coordinate-based tapping.
 
-# 2. Launch app
-python scripts/app_launcher.py --launch com.example.app
+### 1. Emulator Lifecycle Management
+*   **Health Checks**: Use `emu_health_check.sh` (or `.ps1`) to verify the environment (ADB, SDK, Java, Gradle).
+*   **AVD Management**: Use `emulator_manage.py` to list, boot, and shutdown emulators programmatically.
+*   **App Lifecycle**: Use `app_launcher.py` to install, launch, terminate, or uninstall applications.
 
-# 3. Map screen to see elements
-python scripts/screen_mapper.py
+### 2. Semantic UI Interaction
+*   **Screen Mapping**: Use `screen_mapper.py` to analyze the current UI hierarchy and identify interactive elements (buttons, text fields) via `uiautomator`.
+*   **Navigator**: Use `navigator.py` to interact with elements by text, resource-id, or type. Always prefer semantic identifiers over pixel coordinates.
+*   **Gestures & Keyboard**: Use `gesture.py` for swipes and scrolls, and `keyboard.py` for text entry and hardware button events (Back, Home, Enter).
 
-# 4. Tap button
-python scripts/navigator.py --find-text "Login" --tap
+### 3. Build & Diagnostics
+*   **Build Automation**: Use `build_and_test.py` to trigger Gradle tasks (assemble, install, connectedCheck) and parse results.
+*   **Log Monitoring**: Use `log_monitor.py` for intelligent `logcat` filtering by package name, tag, or priority level.
+*   **JSON Output**: Use the `--json` flag on all scripts for machine-readable data integration.
 
-# 5. Enter text
-python scripts/navigator.py --find-type EditText --enter-text "user@example.com"
-```
+## Example Prompts
 
-All scripts support `--help` for detailed options and `--json` for machine-readable output.
+*   "Automate the login flow for `com.example.app` using `navigator.py`: enter 'test@example.com' in the email field, 'password123' in the password field, and click the 'Login' button."
+*   "Perform a UI audit of the current screen by mapping all interactive elements and verifying that every 'Button' has a corresponding 'content-desc' for accessibility."
+*   "Monitor the system logs for `com.example.app` with 'Error' priority for the next 60 seconds and report any stack traces found in JSON format."
 
-## Production Scripts
+## Expected Output
 
-### Build & Development
+*   Reliable automation of app flows and emulator management tasks.
+*   Structured UI maps and filtered log data for debugging and testing.
+*   Clear diagnostic reports on environment health and build/test outcomes.
 
-1. **build_and_test.py** - Build Android projects, run tests, parse results
-   - Wrapper around Gradle
-   - Support for assemble, install, and connectedCheck
-   - Parse build errors and test results
-   - Options: `--task`, `--clean`, `--json`
+## Edge Cases & Common Mistakes
 
-2. **log_monitor.py** - Real-time log monitoring with intelligent filtering
-   - Wrapper around `adb logcat`
-   - Filter by tag, priority, or PID
-   - Deduplicate repeated messages
-   - Options: `--package`, `--tag`, `--priority`, `--duration`, `--json`
+*   **Timing & Race Conditions**: Attempting to interact with a UI element before it is fully rendered. Use retries or wait-for-element logic in scripts.
+*   **Multiple Devices**: Forgetting to specify a device serial (`-s <serial>`) when more than one emulator or physical device is connected via ADB.
+*   **Stale UI Hierarchy**: Relying on a screen map that was captured before a screen transition or dynamic content update. Always refresh the map before critical interactions.
+*   **Emulator Resource Exhaustion**: Running multiple emulators without sufficient system memory or disk space, leading to slow boot times or frequent crashes.
 
-### Navigation & Interaction
+## Review Checklist
 
-3. **screen_mapper.py** - Analyze current screen and list interactive elements
-   - Dump UI hierarchy using `uiautomator`
-   - Parse XML to identify buttons, text fields, etc.
-   - Options: `--verbose`, `--json`
-
-4. **navigator.py** - Find and interact with elements semantically
-   - Find by text (fuzzy matching), resource-id, or class name
-   - Interactive tapping and text entry
-   - Options: `--find-text`, `--find-id`, `--tap`, `--enter-text`, `--json`
-
-5. **gesture.py** - Perform swipes, scrolls, and other gestures
-   - Swipe up/down/left/right
-   - Scroll lists
-   - Options: `--swipe`, `--scroll`, `--duration`, `--json`
-
-6. **keyboard.py** - Key events and hardware buttons
-   - Input key events (Home, Back, Enter, Tab)
-   - Type text via ADB
-   - Options: `--key`, `--text`, `--json`
-
-7. **app_launcher.py** - App lifecycle management
-   - Launch apps (`adb shell am start`)
-   - Terminate apps (`adb shell am force-stop`)
-   - Install/Uninstall APKs
-   - List installed packages
-   - Options: `--launch`, `--terminate`, `--install`, `--uninstall`, `--list`, `--json`
-
-### Emulator Lifecycle Management
-
-8. **emulator_manage.py** - Manage Android Virtual Devices (AVDs)
-   - List available AVDs
-   - Boot emulators
-   - Shutdown emulators
-   - Options: `--list`, `--boot`, `--shutdown`, `--json`
-
-9. **emu_health_check** - Verify environment is properly configured
-    - Use `emu_health_check.sh` on macOS/Linux and `emu_health_check.ps1` on Windows
-    - Check ADB, Emulator, Java, Gradle, ANDROID_HOME
-    - List connected devices
-
-## Common Patterns
-
-**Auto-Device Detection**: Scripts target the single connected device/emulator if only one is present, or require `-s <serial>` if multiple are connected.
-
-**Output Formats**: Default is concise human-readable output. Use `--json` for machine-readable output.
-
-## Requirements
-
-- Android SDK Platform-Tools (adb, fastboot)
-- Android Emulator
-- Java / OpenJDK
-- Python 3
-
-## Key Design Principles
-
-**Semantic Navigation**: Find elements by text, resource-id, or content-description.
-
-**Token Efficiency**: Concise default output with optional verbose and JSON modes.
-
-**Zero Configuration**: Works with standard Android SDK installation.
+- [ ] Emulator environment passes health checks.
+- [ ] UI interactions use semantic identifiers (text, ID) instead of coordinates.
+- [ ] Log monitoring is scoped to the specific package and priority level.
+- [ ] Automation scripts include error handling for missing elements or timeouts.
+- [ ] Build tasks are correctly mapped to Gradle commands.
+- [ ] JSON output is used for integration with other tools or agents.
+- [ ] `adb` server is responsive and device serials are correctly targeted.

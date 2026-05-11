@@ -2,105 +2,40 @@
 name: android-retrofit
 description: "Expert guidance on setting up and using Retrofit for type-safe HTTP networking in Android. Covers service definitions, coroutines, OkHttp configuration, and Hilt integration."
 ---
-# Android Networking with Retrofit
+
+# Android Retrofit Networking Expert
+
+Expert guidance on implementing type-safe network layers using **Retrofit**, **OkHttp**, and **Kotlin Coroutines**, following 2025 best practices.
 
 ## Instructions
 
-When implementing network layers using **Retrofit**, follow these modern Android best practices (2025).
+When implementing network layers using **Retrofit**, follow these modern Android best practices.
 
-### 1. URL Manipulation
-Retrofit allows dynamic URL updates through replacement blocks and query parameters.
-
-*   **Dynamic Paths**: Use `{name}` in the relative URL and `@Path("name")` in parameters.
-*   **Query Parameters**: Use `@Query("key")` for individual parameters.
-*   **Complex Queries**: Use `@QueryMap Map<String, String>` for dynamic sets of parameters.
+### 1. Service Definition
+Use `suspend` functions for all network calls. Prefer returning the deserialized body directly or `Response<T>` if you need access to headers or status codes.
 
 ```kotlin
-interface SearchService {
-    @GET("group/{id}/users")
-    suspend fun groupList(
-        @Path("id") groupId: Int,
-        @Query("sort") sort: String?,
-        @QueryMap options: Map<String, String> = emptyMap()
-    ): List<User>
+interface GitHubService {
+    @GET("users/{user}/repos")
+    suspend fun listRepos(@Path("user") user: String): List<Repo>
+
+    @GET("users/{user}")
+    suspend fun getUserResponse(@Path("user") user: String): Response<User>
 }
 ```
 
-### 2. Request Body & Form Data
-You can send objects as JSON bodies or use form-encoded/multipart formats.
+### 2. URL and Header Manipulation
+*   **Dynamic Paths**: Use `@Path("id")`.
+*   **Query Parameters**: Use `@Query("key")` or `@QueryMap`.
+*   **Headers**: Use `@Header("Name")` for dynamic headers, or an OkHttp **Interceptor** for global headers (e.g., Auth tokens).
 
-*   **@Body**: Serializes an object using the configured converter (JSON).
-*   **@FormUrlEncoded**: Sends data as `application/x-www-form-urlencoded`. Use `@Field`.
-*   **@Multipart**: Sends data as `multipart/form-data`. Use `@Part`.
-
-```kotlin
-interface UserService {
-    @POST("users/new")
-    suspend fun createUser(@Body user: User): User
-
-    @FormUrlEncoded
-    @POST("user/edit")
-    suspend fun updateUser(
-        @Field("first_name") first: String,
-        @Field("last_name") last: String
-    ): User
-
-    @Multipart
-    @PUT("user/photo")
-    suspend fun uploadPhoto(
-        @Part("description") description: RequestBody,
-        @Part photo: MultipartBody.Part
-    ): User
-}
-```
-
-### 3. Header Manipulation
-Headers can be set statically for a method or dynamically via parameters.
-
-*   **Static Headers**: Use `@Headers`.
-*   **Dynamic Headers**: Use `@Header`.
-*   **Header Maps**: Use `@HeaderMap`.
-*   **Global Headers**: Use an OkHttp **Interceptor**.
-
-```kotlin
-interface WidgetService {
-    @Headers("Cache-Control: max-age=640000")
-    @GET("widget/list")
-    suspend fun widgetList(): List<Widget>
-
-    @GET("user")
-    suspend fun getUser(@Header("Authorization") token: String): User
-}
-```
-
-### 4. Kotlin Support & Response Handling
-When using `suspend` functions, you have two choices for return types:
-
-1.  **Direct Body (`User`)**: Returns the deserialized body. Throws `HttpException` for non-2xx responses.
-2.  **`Response<User>`**: Provides access to the status code, headers, and error body. Does NOT throw on non-2xx results.
-
-```kotlin
-@GET("users")
-suspend fun getUsers(): List<User> // Throws on error
-
-@GET("users")
-suspend fun getUsersResponse(): Response<List<User>> // Manual check
-```
-
-### 5. Hilt & Serialization Configuration
-Provide your Retrofit instances as singletons in a Hilt module.
+### 3. Hilt Integration
+Provide your Retrofit instances as singletons in a Hilt module. Use `kotlinx.serialization` for JSON conversion.
 
 ```kotlin
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-
-    @Provides
-    @Singleton
-    fun provideJson(): Json = Json {
-        ignoreUnknownKeys = true
-        coerceInputValues = true
-    }
 
     @Provides
     @Singleton
@@ -111,31 +46,49 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit = Retrofit.Builder()
         .baseUrl("https://api.github.com/")
         .client(okHttpClient)
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory("application/json".toMediaType()))
         .build()
 }
 ```
 
-### 6. Error Handling in Repositories
-Always handle network exceptions in the Repository layer to keep the UI state clean.
+### 4. Error Handling in Repositories
+Always handle network exceptions in the Repository layer using `Result` or a similar wrapper to keep the UI state clean.
 
 ```kotlin
 class GitHubRepository @Inject constructor(private val service: GitHubService) {
     suspend fun getRepos(username: String): Result<List<Repo>> = runCatching {
-        // Direct body call throws HttpException on 4xx/5xx
         service.listRepos(username)
     }.onFailure { exception ->
-        // Handle specific exceptions like UnknownHostException or SocketTimeoutException
+        // Log or handle specific exceptions (Timeout, No Internet)
     }
 }
 ```
 
-### 7. Checklist
-- [ ] Use `suspend` functions for all network calls.
-- [ ] Prefer `Response<T>` if you need to handle specific status codes (e.g., 401 Unauthorized).
-- [ ] Use `@Path` and `@Query` instead of manual string concatenation for URLs.
-- [ ] Configure `OkHttpClient` with logging (for debug) and sensible timeouts.
-- [ ] Map API DTOs to Domain models to decouple layers.
+## Example Prompts
+
+- "Create a Retrofit service for a weather API that supports dynamic city names and API keys in headers."
+- "Show me how to set up an OkHttp Interceptor to automatically add an 'Authorization' bearer token to every Retrofit request."
+- "How do I handle a 401 Unauthorized error globally across all Retrofit services to trigger a logout flow?"
+
+## Expected Output
+
+You should receive a complete networking implementation including the Retrofit interface, Hilt module for dependency injection, and a Repository class that handles network calls and error mapping.
+
+## Edge Cases & Common Mistakes
+
+- **Base URL Suffix**: Always ensure your `baseUrl` ends with a forward slash `/`. If it doesn't, relative paths starting with a slash will behave unexpectedly.
+- **Leaking OkHttpClient**: Always provide `OkHttpClient` as a Singleton. Creating a new instance for every request is extremely expensive and can lead to connection pool exhaustion.
+- **Main Thread Networking**: Retrofit handles thread switching internally when using `suspend` functions, but always ensure your UI doesn't block. The `suspend` function should be called from a `viewModelScope`.
+- **Large Response Bodies**: Avoid using `Response.body()` multiple times as it can be consumed only once. If you need it more than once, store the result in a variable.
+
+## Review Checklist
+
+- [ ] Does the service use `suspend` functions?
+- [ ] Is `kotlinx.serialization` used for JSON conversion?
+- [ ] Are timeouts configured on `OkHttpClient`?
+- [ ] Is a `HttpLoggingInterceptor` used (only in debug builds)?
+- [ ] Are network calls wrapped in `runCatching` or `try-catch` in the Repository?
+- [ ] Does the `baseUrl` end with `/`?

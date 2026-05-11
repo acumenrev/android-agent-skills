@@ -1,138 +1,60 @@
 ---
 name: android-coroutines
-description: "Authoritative rules and patterns for production-quality Kotlin Coroutines onto Android. Covers structured concurrency, lifecycle integration, and reactive streams."
+description: "Expert guidance on implementing asynchronous logic, reactive streams, and lifecycle-safe concurrency in Android using Kotlin Coroutines and Flow."
 ---
-# Android Coroutines Expert Skill
 
-This skill provides authoritative rules and patterns for writing production-quality Kotlin Coroutines code on Android. It enforces structured concurrency, lifecycle safety, and modern best practices (2025 standards).
+# Android Coroutines Expert
 
-## Responsibilities
+## Instructions
 
-*   **Asynchronous Logic**: Implementing suspend functions, Dispatcher management, and parallel execution.
-*   **Reactive Streams**: Implementing `Flow`, `StateFlow`, `SharedFlow`, and `callbackFlow`.
-*   **Lifecycle Integration**: Managing scopes (`viewModelScope`, `lifecycleScope`) and safe collection (`repeatOnLifecycle`).
-*   **Error Handling**: Implementing `CoroutineExceptionHandler`, `SupervisorJob`, and proper `try-catch` hierarchies.
-*   **Cancellability**: Ensuring long-running operations are cooperative using `ensureActive()`.
-*   **Testing**: Setting up `TestDispatcher` and `runTest`.
+Implement high-performance, lifecycle-safe asynchronous logic and reactive streams in Android using Kotlin Coroutines and Flow. Adhere to Kotlin 2.2+, AGP 9.0+, and modern structured concurrency principles.
 
-## Applicability
+### 1. Structured Concurrency & Scopes
+*   **ViewModel Scoping**: Use `viewModelScope` for coroutines initiated within ViewModels.
+*   **Lifecycle Safety**: In UI components (Activities/Fragments), always use `repeatOnLifecycle(Lifecycle.State.STARTED)` to collect flows. Avoid collecting directly in `lifecycleScope.launch`.
+*   **GlobalScope Prohibition**: Never use `GlobalScope`. For tasks that must survive a specific screen, inject an `applicationScope` tied to the Application lifecycle.
 
-Activate this skill when the user asks to:
-*   "Fetch data from an API/Database."
-*   "Perform background processing."
-*   "Fix a memory leak" related to threads/tasks.
-*   "Convert a listener/callback to Coroutines."
-*   "Implement a ViewModel."
-*   "Handle UI state updates."
+### 2. Dispatchers & Main-Safety
+*   **Dispatcher Injection**: Always inject `CoroutineDispatcher` via constructors (e.g., `ioDispatcher: CoroutineDispatcher = Dispatchers.IO`) to ensure testability.
+*   **Main-Safe Repositories**: Every `suspend` function in the Data/Domain layer must be main-safe. Use `withContext(ioDispatcher)` internally to shift execution away from the main thread.
+*   **Parallelism**: Use `coroutineScope` or `supervisorScope` with `async/await` for parallel operations. Use `supervisorScope` when child failures should not cancel siblings.
 
-## Critical Rules & Constraints
+### 3. Reactive Streams with Flow
+*   **State & Shared Flow**: Expose UI state as `StateFlow` (using `asStateFlow()`) and one-time events as `SharedFlow`. Never expose `Mutable` versions publicly.
+*   **Callback Conversion**: Use `callbackFlow` to adapt listener-based APIs to Flow. Always use `awaitClose` to unregister listeners.
+*   **Operator Selection**: Use `collectLatest` for UI updates where only the newest data matters. Use `flowOn` to specify the execution context for upstream operators.
 
-### 1. Dispatcher Injection (Testability)
-*   **NEVER** hardcode Dispatchers (e.g., `Dispatchers.IO`, `Dispatchers.Default`) inside classes.
-*   **ALWAYS** inject a `CoroutineDispatcher` via the constructor.
-*   **DEFAULT** to `Dispatchers.IO` in the constructor argument for convenience, but allow it to be overridden.
+### 4. Error Handling & Cancellability
+*   **Cancellation Awareness**: Ensure long-running loops are cooperative by calling `ensureActive()` or `yield()`.
+*   **Exception Handling**: Never catch `Exception` without rethrowing `CancellationException`. Use `CoroutineExceptionHandler` only for top-level coroutines in a scope.
+*   **Supervision**: Use `SupervisorJob` or `supervisorScope` when you want to handle failures of individual child coroutines independently.
 
-```kotlin
-// CORRECT
-class UserRepository(
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-) { ... }
+## Example Prompts
 
-// INCORRECT
-class UserRepository {
-    fun getData() = withContext(Dispatchers.IO) { ... }
-}
-```
+*   "Convert this callback-based Location API into a cold Flow using `callbackFlow`, ensuring proper cleanup and lifecycle awareness."
+*   "Optimize this long-running data processing task in the Repository to be cooperatively cancellable and main-safe using injected dispatchers."
+*   "Implement a robust error handling strategy for parallel network requests using `supervisorScope` and `async/await`, ensuring that one failing request doesn't cancel the others."
 
-### 2. Main-Safety
-*   All suspend functions defined in the Data or Domain layer must be **main-safe**.
-*   **One-shot calls** should be exposed as `suspend` functions.
-*   **Data changes** should be exposed as `Flow`.
-*   The caller (ViewModel) should be able to call them from `Dispatchers.Main` without blocking the UI.
-*   Use `withContext(dispatcher)` inside the repository implementation to move execution to the background.
+## Expected Output
 
-### 3. Lifecycle-Aware Collection
-*   **NEVER** collect a flow directly in `lifecycleScope.launch` or `launchWhenStarted` (deprecated/unsafe).
-*   **ALWAYS** use `repeatOnLifecycle(Lifecycle.State.STARTED)` for collecting flows in Activities or Fragments.
+*   Thread-safe and memory-efficient asynchronous code following structured concurrency rules.
+*   Production-ready Flow implementations with proper error handling and lifecycle integration.
+*   Testable code with support for `StandardTestDispatcher` and `runTest`.
 
-```kotlin
-// CORRECT
-viewLifecycleOwner.lifecycleScope.launch {
-    viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-        viewModel.uiState.collect { ... }
-    }
-}
-```
+## Edge Cases & Common Mistakes
 
-### 4. ViewModel Scope Usage
-*   Use `viewModelScope` for initiating coroutines in ViewModels.
-*   Do not expose suspend functions from the ViewModel to the View. The ViewModel should expose `StateFlow` or `SharedFlow` that the View observes.
+*   **Swallowing Cancellation**: Catching `Exception` (or `Throwable`) and not rethrowing `CancellationException`, which prevents the coroutine from stopping when its scope is cancelled.
+*   **Hardcoded Dispatchers**: Using `Dispatchers.IO` or `Dispatchers.Default` directly in logic, making it impossible to swap them for `TestDispatcher` during unit testing.
+*   **Unsafe Flow Collection**: Collecting flows in the UI without `repeatOnLifecycle`, which can lead to "collection while in background" issues, wasting resources or causing crashes.
+*   **Blocking the Main Thread**: Performing heavy I/O or computation inside a `suspend` function without using `withContext` to move to a background dispatcher.
 
-### 5. Mutable State Encapsulation
-*   **NEVER** expose `MutableStateFlow` or `MutableSharedFlow` publicly.
-*   Expose them as read-only `StateFlow` or `Flow` using `.asStateFlow()` or upcasting.
+## Review Checklist
 
-### 6. GlobalScope Prohibition
-*   **NEVER** use `GlobalScope`. It breaks structured concurrency and leads to leaks.
-*   If a task must survive the current scope, use an injected `applicationScope` (a custom scope tied to the Application lifecycle).
-
-### 7. Exception Handling
-*   **NEVER** catch `CancellationException` in a generic `catch (e: Exception)` block without rethrowing it.
-*   Use `runCatching` only if you explicitly rethrow `CancellationException`.
-*   Use `CoroutineExceptionHandler` only for top-level coroutines (inside `launch`). It has no effect inside `async` or child coroutines.
-
-### 8. Cancellability
-*   Coroutines feature **cooperative cancellation**. They don't stop immediately unless they check for cancellation.
-*   **ALWAYS** call `ensureActive()` or `yield()` in tight loops (e.g., processing a large list, reading files) to check for cancellation.
-*   Standard functions like `delay()` and `withContext()` are already cancellable.
-
-### 9. Callback Conversion
-*   Use `callbackFlow` to convert callback-based APIs to Flow.
-*   **ALWAYS** use `awaitClose` at the end of the `callbackFlow` block to unregister listeners.
-
-## Code Patterns
-
-### Repository Pattern with Flow
-
-```kotlin
-class NewsRepository(
-    private val remoteDataSource: NewsRemoteDataSource,
-    private val externalScope: CoroutineScope, // For app-wide events
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-) {
-    val newsUpdates: Flow<List<News>> = flow {
-        val news = remoteDataSource.fetchLatestNews()
-        emit(news)
-    }.flowOn(ioDispatcher) // Upstream executes on IO
-}
-```
-
-### Parallel Execution
-
-```kotlin
-suspend fun loadDashboardData() = coroutineScope {
-    val userDeferred = async { userRepo.getUser() }
-    val feedDeferred = async { feedRepo.getFeed() }
-    
-    // Wait for both
-    DashboardData(
-        user = userDeferred.await(),
-        feed = feedDeferred.await()
-    )
-}
-```
-
-### Testing with runTest
-
-```kotlin
-@Test
-fun testViewModel() = runTest {
-    val testDispatcher = StandardTestDispatcher(testScheduler)
-    val viewModel = MyViewModel(testDispatcher)
-    
-    viewModel.loadData()
-    advanceUntilIdle() // Process coroutines
-    
-    assertEquals(expectedState, viewModel.uiState.value)
-}
-```
+- [ ] All `suspend` functions in repositories are main-safe.
+- [ ] Dispatchers are injected, not hardcoded.
+- [ ] UI flow collection uses `repeatOnLifecycle`.
+- [ ] `MutableStateFlow` and `MutableSharedFlow` are encapsulated.
+- [ ] Long-running tasks check for cancellation using `ensureActive()`.
+- [ ] `CancellationException` is never swallowed.
+- [ ] `callbackFlow` properly uses `awaitClose` for cleanup.
+- [ ] `GlobalScope` is not used anywhere in the codebase.

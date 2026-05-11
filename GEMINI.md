@@ -29,7 +29,14 @@ There is no normal app-style build or test loop here. Validation is mostly edito
 - Use progressive disclosure. Important reference files should be linked directly from `SKILL.md`.
 - Keep skills self-contained. A skill may mention a sibling skill, but it should not depend on another skill's files.
 - Preserve topic boundaries between sibling skills instead of recombining broad topics.
-- Prefer one strong modern default over presenting many competing approaches.
+- **Strong Modern Defaults:** Prefer one strong modern default over presenting many competing approaches. For Android, this stack is:
+  - **Language**: Kotlin 2.2+ (with K2 compiler)
+  - **UI**: Jetpack Compose (Material 3)
+  - **Architecture**: Clean Architecture / MVVM / MVI
+  - **Dependency Injection**: Hilt
+  - **Concurrency**: Kotlin Coroutines & Flow
+  - **Networking**: Retrofit + Kotlinx Serialization
+  - **Persistence**: Room
 - Keep guidance focused on current Android APIs and AGP 9.0 features (like built-in Kotlin). Avoid deprecated patterns unless the skill is explicitly about migration.
 - When a skill changes substantially, sanity-check it with realistic prompts to make sure the description, scope, and guidance still work well in practice.
 
@@ -52,8 +59,9 @@ Frontmatter on each `SKILL.md` is important for discovery and routing.
 
 Most skills in this repo follow a stable pattern. Preserve it unless there is a strong reason not to:
 - clear opening scope statement
-- `## Contents`
-- main guidance sections
-- `## Common Mistakes`
+- YAML frontmatter with `name` and `description`
+- `## Instructions`
+- `## Example Prompts`
+- `## Expected Output`
+- `## Edge Cases & Common Mistakes`
 - `## Review Checklist`
-- `## References` when supporting material exists

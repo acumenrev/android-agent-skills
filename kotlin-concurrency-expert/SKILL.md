@@ -1,168 +1,80 @@
 ---
 name: kotlin-concurrency-expert
-description: "Kotlin Coroutines review and remediation for Android. Use when asked to review concurrency usage, fix coroutine-related bugs, improve thread safety, or resolve lifecycle issues in Kotlin/Android code."
+description: "Kotlin Coroutines review and remediation for Android. Use when asked to review concurrency usage, fix coroutine-related bugs, improve thread safety, or resolve lifecycle issues."
 ---
 # Kotlin Concurrency Expert
 
-## Overview
+## Instructions
 
-Review and fix Kotlin Coroutines issues in Android codebases by applying structured concurrency, lifecycle safety, proper scoping, and modern best practices with minimal behavior changes.
+Review and implement Kotlin Coroutines in Android following structured concurrency and lifecycle safety principles.
 
-## Workflow
+### 1. Structured Concurrency & Scoping
+Always use the appropriate scope to avoid memory leaks and zombie coroutines.
+*   **ViewModel**: Use `viewModelScope` for operations that should live as long as the screen.
+*   **UI (Activity/Fragment)**: Use `lifecycleScope` for UI-bound operations.
+*   **Application**: Inject a custom `CoroutineScope` bound to the `Application` lifecycle for long-running background tasks (e.g., syncing).
+*   **Avoid**: Never use `GlobalScope` or `NonCancellable` unless absolutely necessary and documented.
 
-### 1. Triage the Issue
-
-- Capture the exact error, crash, or symptom (ANR, memory leak, race condition, incorrect state).
-- Check project coroutines setup: `kotlinx-coroutines-android` version, `lifecycle-runtime-ktx` version.
-- Identify the current scope context (`viewModelScope`, `lifecycleScope`, custom scope, or none).
-- Confirm whether the code is UI-bound (`Dispatchers.Main`) or intended to run off the main thread (`Dispatchers.IO`, `Dispatchers.Default`).
-- Verify Dispatcher injection patterns for testability.
-
-### 2. Apply the Smallest Safe Fix
-
-Prefer edits that preserve existing behavior while satisfying structured concurrency and lifecycle safety.
-
-Common fixes:
-
-- **ANR / Main thread blocking**: Move heavy work to `withContext(Dispatchers.IO)` or `Dispatchers.Default`; ensure suspend functions are main-safe.
-- **Memory leaks / zombie coroutines**: Replace `GlobalScope` with a lifecycle-bound scope (`viewModelScope`, `lifecycleScope`, or injected `applicationScope`).
-- **Lifecycle collection issues**: Replace deprecated `launchWhenStarted` with `repeatOnLifecycle(Lifecycle.State.STARTED)`.
-- **State exposure**: Encapsulate `MutableStateFlow` / `MutableSharedFlow`; expose read-only `StateFlow` or `Flow`.
-- **CancellationException swallowing**: Ensure generic `catch (e: Exception)` blocks rethrow `CancellationException`.
-- **Non-cooperative cancellation**: Add `ensureActive()` or `yield()` in tight loops for cooperative cancellation.
-- **Callback APIs**: Convert listeners to `callbackFlow` with proper `awaitClose` cleanup.
-- **Hardcoded Dispatchers**: Inject `CoroutineDispatcher` via constructor for testability.
-
-## Critical Rules
-
-### Dispatcher Injection (Testability)
+### 2. Main-Safe Suspend Functions
+Suspend functions should be "main-safe," meaning they can be called from the main thread without blocking it.
+*   **Pattern**: Use `withContext(Dispatchers.IO)` or `withContext(Dispatchers.Default)` inside the function to switch threads.
+*   **Injection**: Inject `CoroutineDispatcher` via the constructor to allow for easier unit testing.
 
 ```kotlin
-// CORRECT: Inject dispatcher
-class UserRepository(
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+class UserRepository @Inject constructor(
+    private val ioDispatcher: CoroutineDispatcher // Injected via Hilt
 ) {
-    suspend fun fetchUser() = withContext(ioDispatcher) { ... }
-}
-
-// INCORRECT: Hardcoded dispatcher
-class UserRepository {
-    suspend fun fetchUser() = withContext(Dispatchers.IO) { ... }
-}
-```
-
-### Lifecycle-Aware Collection
-
-```kotlin
-// CORRECT: Use repeatOnLifecycle
-viewLifecycleOwner.lifecycleScope.launch {
-    viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-        viewModel.uiState.collect { state -> updateUI(state) }
-    }
-}
-
-// INCORRECT: Direct collection (unsafe, deprecated)
-lifecycleScope.launchWhenStarted {
-    viewModel.uiState.collect { state -> updateUI(state) }
-}
-```
-
-### State Encapsulation
-
-```kotlin
-// CORRECT: Expose read-only StateFlow
-class MyViewModel : ViewModel() {
-    private val _uiState = MutableStateFlow(UiState())
-    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
-}
-
-// INCORRECT: Exposed mutable state
-class MyViewModel : ViewModel() {
-    val uiState = MutableStateFlow(UiState()) // Leaks mutability
-}
-```
-
-### Exception Handling
-
-```kotlin
-// CORRECT: Rethrow CancellationException
-try {
-    doSuspendWork()
-} catch (e: CancellationException) {
-    throw e // Must rethrow!
-} catch (e: Exception) {
-    handleError(e)
-}
-
-// INCORRECT: Swallows cancellation
-try {
-    doSuspendWork()
-} catch (e: Exception) {
-    handleError(e) // CancellationException swallowed!
-}
-```
-
-### Cooperative Cancellation
-
-```kotlin
-// CORRECT: Check for cancellation in tight loops
-suspend fun processLargeList(items: List<Item>) {
-    items.forEach { item ->
-        ensureActive() // Check cancellation
-        processItem(item)
-    }
-}
-
-// INCORRECT: Non-cooperative (ignores cancellation)
-suspend fun processLargeList(items: List<Item>) {
-    items.forEach { item ->
-        processItem(item) // Never checks cancellation
+    suspend fun fetchData() = withContext(ioDispatcher) {
+        // Network or DB work
     }
 }
 ```
 
-### Callback Conversion
+### 3. Lifecycle-Aware Flow Collection
+Use the `repeatOnLifecycle` or `collectAsStateWithLifecycle` APIs to ensure flows are only collected when the UI is in a specific state (usually `STARTED`).
+*   **Benefit**: Automatically stops collection when the app is in the background, saving resources and preventing UI updates on a destroyed view.
 
-```kotlin
-// CORRECT: callbackFlow with awaitClose
-fun locationUpdates(): Flow<Location> = callbackFlow {
-    val listener = LocationListener { location ->
-        trySend(location)
-    }
-    locationManager.requestLocationUpdates(listener)
-    
-    awaitClose { locationManager.removeUpdates(listener) }
-}
-```
+### 4. Exception Handling
+*   **CoroutineExceptionHandler**: Use for top-level exception handling in a scope.
+*   **try/catch**: Use inside `launch` or `async` for granular error handling.
+*   **CancellationException**: Never swallow `CancellationException`. Always rethrow it to allow the coroutine system to function correctly.
 
-## Scope Guidelines
+### 5. Shared State & Thread Safety
+*   **StateFlow/SharedFlow**: Use these for reactive state management instead of manual listeners.
+*   **Mutex**: Use `kotlinx.coroutines.sync.Mutex` instead of `synchronized` blocks for non-blocking mutual exclusion.
 
-| Scope | Use When | Lifecycle |
-|-------|----------|-----------|
-| `viewModelScope` | ViewModel operations | Cleared with ViewModel |
-| `lifecycleScope` | UI operations in Activity/Fragment | Destroyed with lifecycle owner |
-| `repeatOnLifecycle` | Flow collection in UI | Started/Stopped with lifecycle state |
-| `applicationScope` (injected) | App-wide background work | Application lifetime |
-| `GlobalScope` | **NEVER USE** | Breaks structured concurrency |
+## Example Prompts
 
-## Testing Pattern
+1.  "Review this ViewModel and ensure all coroutines are properly scoped and exceptions are handled correctly."
+2.  "How do I convert this legacy callback-based API into a cold Flow using `callbackFlow`?"
+3.  "My app is crashing with a `JobCancellationException` when I rotate the screen. Help me fix the lifecycle collection logic."
 
-```kotlin
-@Test
-fun `loading data updates state`() = runTest {
-    val testDispatcher = StandardTestDispatcher(testScheduler)
-    val repository = FakeRepository()
-    val viewModel = MyViewModel(repository, testDispatcher)
-    
-    viewModel.loadData()
-    advanceUntilIdle()
-    
-    assertEquals(UiState.Success(data), viewModel.uiState.value)
-}
-```
+## Expected Output
 
-## Reference Material
+The user should receive:
+*   Refactored code using `viewModelScope` or `lifecycleScope`.
+*   Implementation of main-safe suspend functions with injected dispatchers.
+*   Flow collection logic using `repeatOnLifecycle` or `collectAsStateWithLifecycle`.
+*   A clear strategy for handling exceptions across different coroutine scopes.
+*   Thread-safe implementations for shared state using `Mutex` or `StateFlow`.
 
-- [Kotlin Coroutines Best Practices](https://developer.android.com/kotlin/coroutines/coroutines-best-practices)
-- [StateFlow and SharedFlow](https://developer.android.com/kotlin/flow/stateflow-and-sharedflow)
-- [repeatOnLifecycle API](https://developer.android.com/topic/libraries/architecture/coroutines#repeatOnLifecycle)
+## Edge Cases & Common Mistakes
+
+*   **Blocking the Main Thread**: Running heavy computations or I/O directly in `Dispatchers.Main` or without `withContext`.
+*   **Leaking Subscriptions**: Collecting flows in `lifecycleScope.launch` without `repeatOnLifecycle`, which keeps the subscription active even when the view is not visible.
+*   **Hardcoded Dispatchers**: Using `Dispatchers.IO` directly in classes, making them impossible to unit test with `TestDispatcher`.
+*   **Swallowing Cancellation**: Catching `Exception` or `Throwable` and not rethrowing `CancellationException`.
+*   **Async without Await**: Using `async` to start a coroutine but never calling `await()`, which can hide exceptions until the job is joined.
+*   **launchWhenStarted**: Using the deprecated `launchWhenX` APIs, which pause execution but don't cancel the collection, potentially leading to wasted resources.
+
+## Review Checklist
+
+- [ ] Is `viewModelScope` or `lifecycleScope` used instead of custom/global scopes?
+- [ ] Are all suspend functions main-safe using `withContext`?
+- [ ] Are `CoroutineDispatcher`s injected via the constructor?
+- [ ] Is `repeatOnLifecycle` or `collectAsStateWithLifecycle` used for UI flow collection?
+- [ ] Are `CancellationException`s rethrown in catch blocks?
+- [ ] Is `MutableStateFlow` properly encapsulated (private mutable, public read-only)?
+- [ ] Is `callbackFlow` used correctly with `awaitClose` for callback APIs?
+- [ ] Are heavy computations moved to `Dispatchers.Default`?
+- [ ] Is `Mutex` used for thread-safe access to shared mutable state?

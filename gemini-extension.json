@@ -1,0 +1,6 @@
+{
+  "name": "android-agent-skills",
+  "version": "1.0.0",
+  "description": "A collection of agent skills for modern Android development (AGP 9.0+, Kotlin 2.2, Jetpack Compose), optimized for Gemini CLI.",
+  "contextFileName": "GEMINI.md"
+}

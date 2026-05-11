@@ -1,72 +1,46 @@
 ---
 name: compose-navigation
-description: "Implement navigation in Jetpack Compose using Navigation Compose. Use when asked to set up navigation, pass arguments between screens, handle deep links, or structure multi-screen apps."
+description: "Implement type-safe navigation in Jetpack Compose using Navigation Compose. Use when asked to set up navigation, pass arguments between screens, handle deep links, or structure multi-screen apps."
 ---
-# Compose Navigation
+# Compose Navigation Expert
 
-## Overview
+## Instructions
 
-Implement type-safe navigation in Jetpack Compose applications using the Navigation Compose library. This skill covers NavHost setup, argument passing, deep links, nested graphs, adaptive navigation, and testing.
+Implement type-safe navigation in Jetpack Compose applications using the Navigation Compose library. Follow these guidelines for modern, maintainable navigation.
 
-## Setup
-
-Add the Navigation Compose dependency:
+### 1. Setup & Dependencies
+Ensure you have the necessary dependencies for type-safe navigation and Kotlin serialization.
 
 ```kotlin
 // build.gradle.kts
-dependencies {
-    implementation("androidx.navigation:navigation-compose:2.8.5")
-    
-    // For type-safe navigation (recommended)
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+plugins {
+    kotlin("plugin.serialization") version "2.1.0" // Latest for Kotlin 2.1+
 }
 
-// Enable serialization plugin
-plugins {
-    kotlin("plugin.serialization") version "2.0.21"
+dependencies {
+    implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 }
 ```
 
----
-
-## Core Concepts
-
-### 1. Define Routes (Type-Safe)
-
-Use `@Serializable` data classes/objects for type-safe routes:
+### 2. Type-Safe Route Definitions
+Use `@Serializable` data classes and objects to define routes. This replaces the legacy string-based route pattern.
 
 ```kotlin
 import kotlinx.serialization.Serializable
 
-// Simple screen (no arguments)
 @Serializable
 object Home
 
-// Screen with required argument
 @Serializable
-data class Profile(val userId: String)
+data class ProductDetail(val productId: String)
 
-// Screen with optional argument
 @Serializable
-data class Settings(val section: String? = null)
-
-// Screen with multiple arguments
-@Serializable
-data class ProductDetail(val productId: String, val showReviews: Boolean = false)
+object Settings
 ```
 
-### 2. Create NavController
-
-```kotlin
-@Composable
-fun MyApp() {
-    val navController = rememberNavController()
-    
-    AppNavHost(navController = navController)
-}
-```
-
-### 3. Create NavHost
+### 3. NavHost Implementation
+Structure your `NavHost` using the type-safe `composable<T>` and `navigation<T>` extensions.
 
 ```kotlin
 @Composable
@@ -80,342 +54,65 @@ fun AppNavHost(
         modifier = modifier
     ) {
         composable<Home> {
-            HomeScreen(
-                onNavigateToProfile = { userId ->
-                    navController.navigate(Profile(userId))
-                }
-            )
+            HomeScreen(onProductClick = { id -> 
+                navController.navigate(ProductDetail(id)) 
+            })
         }
-        
-        composable<Profile> { backStackEntry ->
-            val profile: Profile = backStackEntry.toRoute()
-            ProfileScreen(userId = profile.userId)
-        }
-        
-        composable<Settings> { backStackEntry ->
-            val settings: Settings = backStackEntry.toRoute()
-            SettingsScreen(section = settings.section)
+        composable<ProductDetail> { backStackEntry ->
+            val route: ProductDetail = backStackEntry.toRoute()
+            ProductDetailScreen(productId = route.productId)
         }
     }
 }
 ```
 
----
-
-## Navigation Patterns
-
-### Basic Navigation
-
-```kotlin
-// Navigate forward
-navController.navigate(Profile(userId = "user123"))
-
-// Navigate and pop current screen
-navController.navigate(Home) {
-    popUpTo<Home> { inclusive = true }
-}
-
-// Navigate back
-navController.popBackStack()
-
-// Navigate back to specific destination
-navController.popBackStack<Home>(inclusive = false)
-```
-
-### Navigate with Options
-
-```kotlin
-navController.navigate(Profile(userId = "user123")) {
-    // Pop up to destination (clear back stack)
-    popUpTo<Home> {
-        inclusive = false  // Keep Home in stack
-        saveState = true   // Save state of popped screens
-    }
-    
-    // Avoid multiple copies of same destination
-    launchSingleTop = true
-    
-    // Restore state when navigating to this destination
-    restoreState = true
-}
-```
-
-### Bottom Navigation Pattern
-
-```kotlin
-@Composable
-fun MainScreen() {
-    val navController = rememberNavController()
-    
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-                
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") },
-                    selected = currentDestination?.hasRoute<Home>() == true,
-                    onClick = {
-                        navController.navigate(Home) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-                // Add more items...
-            }
-        }
-    ) { innerPadding ->
-        AppNavHost(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding)
-        )
-    }
-}
-```
-
----
-
-## Argument Handling
-
-### Retrieve Arguments in Composable
-
-```kotlin
-composable<Profile> { backStackEntry ->
-    val profile: Profile = backStackEntry.toRoute()
-    ProfileScreen(userId = profile.userId)
-}
-```
-
-### Retrieve Arguments in ViewModel
+### 4. ViewModel Integration
+Retrieve navigation arguments directly in the ViewModel using `SavedStateHandle.toRoute<T>()`.
 
 ```kotlin
 @HiltViewModel
-class ProfileViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
-    private val userRepository: UserRepository
+class ProductViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    
-    private val profile: Profile = savedStateHandle.toRoute<Profile>()
-    
-    val user: StateFlow<User?> = userRepository
-        .getUser(profile.userId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    private val route = savedStateHandle.toRoute<ProductDetail>()
+    val productId = route.productId
 }
 ```
 
-### Complex Data: Pass IDs, Not Objects
+### 5. Advanced Patterns
+*   **Deep Links**: Define deep links directly on the `composable` call using `navDeepLink<T>`.
+*   **Nested Graphs**: Group related screens using `navigation<GraphType>`.
+*   **Navigation Options**: Use `popUpTo`, `launchSingleTop`, and `restoreState` for bottom navigation to maintain backstack integrity.
 
-```kotlin
-// CORRECT: Pass only the ID
-navController.navigate(Profile(userId = "user123"))
+## Example Prompts
 
-// In ViewModel, fetch from repository
-class ProfileViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
-    private val profile = savedStateHandle.toRoute<Profile>()
-    val user = userRepository.getUser(profile.userId)
-}
+1.  "Set up a type-safe navigation graph for an app with a Home screen, a Search screen, and a User Profile screen that takes a 'userId' argument."
+2.  "Show me how to implement a bottom navigation bar using Navigation Compose that preserves the state of each tab."
+3.  "How do I handle a deep link that navigates directly to a specific order details screen using the new type-safe navigation APIs?"
 
-// INCORRECT: Don't pass complex objects
-// navController.navigate(Profile(user = complexUserObject)) // BAD!
-```
+## Expected Output
 
----
+The user should receive:
+*   A complete `NavHost` implementation using type-safe routes.
+*   `@Serializable` route definitions for all screens.
+*   Code demonstrating how to navigate and pass arguments.
+*   ViewModel examples showing how to retrieve those arguments.
+*   Clear instructions on necessary `build.gradle.kts` configuration.
 
-## Deep Links
+## Edge Cases & Common Mistakes
 
-### Define Deep Links
+*   **Passing Complex Objects**: Never pass large or complex objects (e.g., a `User` entity) in routes. Pass the unique ID and fetch the data in the destination's ViewModel. This keeps the URL/backstack small and ensures data consistency.
+*   **Forgetting Serialization Plugin**: The Kotlin serialization plugin is mandatory for type-safe routes. Ensure it is applied in the `plugins` block.
+*   **Manual String Parsing**: Avoid manually parsing navigation arguments from strings or bundle keys. Always use `.toRoute<T>()` for both `NavBackStackEntry` and `SavedStateHandle`.
+*   **Incorrect Deep Link Setup**: Ensure the `basePath` in `navDeepLink` matches the intent-filter in `AndroidManifest.xml`.
+*   **Navigating in Composition**: Do not call `navController.navigate()` directly in a Composable's body. Use `LaunchedEffect` or a callback to ensure it happens in response to an event.
 
-```kotlin
-@Serializable
-data class Profile(val userId: String)
+## Review Checklist
 
-composable<Profile>(
-    deepLinks = listOf(
-        navDeepLink<Profile>(basePath = "https://example.com/profile")
-    )
-) { backStackEntry ->
-    val profile: Profile = backStackEntry.toRoute()
-    ProfileScreen(userId = profile.userId)
-}
-```
-
-### Manifest Configuration
-
-```xml
-<activity android:name=".MainActivity">
-    <intent-filter>
-        <action android:name="android.intent.action.VIEW" />
-        <category android:name="android.intent.category.DEFAULT" />
-        <category android:name="android.intent.category.BROWSABLE" />
-        <data android:scheme="https" android:host="example.com" />
-    </intent-filter>
-</activity>
-```
-
-### Create PendingIntent for Notifications
-
-```kotlin
-val context = LocalContext.current
-val deepLinkIntent = Intent(
-    Intent.ACTION_VIEW,
-    "https://example.com/profile/user123".toUri(),
-    context,
-    MainActivity::class.java
-)
-
-val pendingIntent = TaskStackBuilder.create(context).run {
-    addNextIntentWithParentStack(deepLinkIntent)
-    getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-}
-```
-
----
-
-## Nested Navigation
-
-### Create Nested Graph
-
-```kotlin
-NavHost(navController = navController, startDestination = Home) {
-    composable<Home> { HomeScreen() }
-    
-    // Nested graph for authentication flow
-    navigation<AuthGraph>(startDestination = Login) {
-        composable<Login> {
-            LoginScreen(
-                onLoginSuccess = {
-                    navController.navigate(Home) {
-                        popUpTo<AuthGraph> { inclusive = true }
-                    }
-                }
-            )
-        }
-        composable<Register> { RegisterScreen() }
-        composable<ForgotPassword> { ForgotPasswordScreen() }
-    }
-}
-
-// Route definitions
-@Serializable object AuthGraph
-@Serializable object Login
-@Serializable object Register
-@Serializable object ForgotPassword
-```
-
----
-
-## Adaptive Navigation
-
-Use `NavigationSuiteScaffold` for responsive navigation (bottom bar on phones, rail on tablets):
-
-```kotlin
-@Composable
-fun AdaptiveApp() {
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-    
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            item(
-                icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                label = { Text("Home") },
-                selected = currentDestination?.hasRoute<Home>() == true,
-                onClick = { navController.navigate(Home) }
-            )
-            item(
-                icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                label = { Text("Settings") },
-                selected = currentDestination?.hasRoute<Settings>() == true,
-                onClick = { navController.navigate(Settings()) }
-            )
-        }
-    ) {
-        AppNavHost(navController = navController)
-    }
-}
-```
-
----
-
-## Testing
-
-### Setup
-
-```kotlin
-// build.gradle.kts
-androidTestImplementation("androidx.navigation:navigation-testing:2.8.5")
-```
-
-### Test Navigation
-
-```kotlin
-class NavigationTest {
-    @get:Rule
-    val composeTestRule = createComposeRule()
-    
-    private lateinit var navController: TestNavHostController
-    
-    @Before
-    fun setup() {
-        composeTestRule.setContent {
-            navController = TestNavHostController(LocalContext.current)
-            navController.navigatorProvider.addNavigator(ComposeNavigator())
-            AppNavHost(navController = navController)
-        }
-    }
-    
-    @Test
-    fun verifyStartDestination() {
-        composeTestRule
-            .onNodeWithText("Welcome")
-            .assertIsDisplayed()
-    }
-    
-    @Test
-    fun navigateToProfile_displaysProfileScreen() {
-        composeTestRule
-            .onNodeWithText("View Profile")
-            .performClick()
-        
-        assertTrue(
-            navController.currentBackStackEntry?.destination?.hasRoute<Profile>() == true
-        )
-    }
-}
-```
-
----
-
-## Critical Rules
-
-### DO
-
-- Use `@Serializable` routes for type safety
-- Pass only IDs/primitives as arguments
-- Use `popUpTo` with `launchSingleTop` for bottom navigation
-- Extract `NavHost` to a separate composable for testability
-- Use `SavedStateHandle.toRoute<T>()` in ViewModels
-
-### DON'T
-
-- Pass complex objects as navigation arguments
-- Create `NavController` inside `NavHost`
-- Navigate in `LaunchedEffect` without proper keys
-- Forget `FLAG_IMMUTABLE` for PendingIntents (Android 12+)
-- Use string-based routes (legacy pattern)
-
----
-
-## References
-
-- [Navigation with Compose](https://developer.android.com/develop/ui/compose/navigation)
-- [Type-Safe Navigation](https://developer.android.com/guide/navigation/design#compose)
-- [Pass Data Between Destinations](https://developer.android.com/guide/navigation/navigation-pass-data)
-- [Test Navigation](https://developer.android.com/guide/navigation/navigation-testing)
+- [ ] Are all routes defined as `@Serializable` data classes or objects?
+- [ ] Is the `NavHost` using the type-safe `composable<T>` calls?
+- [ ] Are arguments retrieved using `toRoute<T>()` in ViewModels or Composables?
+- [ ] Is `modifier` passed and used in the root of the `NavHost`?
+- [ ] For bottom nav, are `saveState`, `restoreState`, and `launchSingleTop` used correctly?
+- [ ] Are complex objects avoided as navigation arguments?
+- [ ] Are dependencies and plugins correctly configured in Gradle?
